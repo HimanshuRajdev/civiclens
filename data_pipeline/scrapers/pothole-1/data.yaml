@@ -1,0 +1,12 @@
+names:
+- pothole
+nc: 1
+roboflow:
+  license: CC BY 4.0
+  project: pothole-vhmow-tyhuu
+  url: https://app.roboflow.com/civiclens-r76kq/pothole-vhmow-tyhuu/1
+  version: 1
+  workspace: civiclens-r76kq
+test: ../test/images
+train: ../train/images
+val: ../valid/images
