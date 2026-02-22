@@ -1,20 +1,16 @@
 """
-CivicLens - EfficientNetV2 Inference
-Replaces YOLO inference with the higher-accuracy classification model.
-Drop best_roadscan.pt in the backend/ folder.
+RoadScan AI - EfficientNetV2 Inference
 """
-
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
-from torchvision.models import EfficientNet_V2_S_Weights
 from PIL import Image
 import os
 
-MODEL_PATH = "best_roadscan.pt"
+MODEL_PATH = "final_model.pt"
 IMAGE_SIZE = 224
 
-_model = None
+_model   = None
 _classes = None
 
 def get_model():
@@ -23,10 +19,10 @@ def get_model():
         return _model, _classes
 
     if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Model not found at '{MODEL_PATH}'. Drop best_roadscan.pt in backend/")
+        raise FileNotFoundError(f"Model not found at '{MODEL_PATH}'.")
 
     ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
-    _classes = ckpt["classes"]
+    _classes    = ckpt["classes"]
     num_classes = len(_classes)
 
     model = models.efficientnet_v2_s(weights=None)
@@ -45,21 +41,30 @@ def get_model():
 
 
 SEVERITY_MAP = {
-    "sinkhole":           "High",
-    "pothole":            "High",
-    "water_leakage":      "High",
-    "garbage_overflow":   "Medium",
-    "broken_streetlight": "Medium",
-    "broken_sidewalk":    "Low",
+    "potholes":                "High",
+    "cracked_pavement":        "Medium",
+    "road_debris_obstruction": "High",
+    "broken_road_signs":       "Medium",
+    "faded_lane_markings":     "Low",
+    "normal_road":             "None",
 }
 
 DEPARTMENT_MAP = {
-    "pothole":            "Roads & Infrastructure Department",
-    "sinkhole":           "Roads & Infrastructure Department",
-    "water_leakage":      "Water & Sewage Department",
-    "garbage_overflow":   "Sanitation & Waste Management",
-    "broken_streetlight": "Electrical & Street Lighting Department",
-    "broken_sidewalk":    "Public Works Department",
+    "potholes":                "Roads & Infrastructure Department",
+    "cracked_pavement":        "Roads & Infrastructure Department",
+    "road_debris_obstruction": "Roads & Infrastructure Department",
+    "broken_road_signs":       "Traffic & Signage Department",
+    "faded_lane_markings":     "Roads & Infrastructure Department",
+    "normal_road":             None,
+}
+
+DISPLAY_NAME = {
+    "potholes":                "Pothole",
+    "cracked_pavement":        "Cracked Pavement",
+    "road_debris_obstruction": "Road Debris / Obstruction",
+    "broken_road_signs":       "Broken / Damaged Road Sign",
+    "faded_lane_markings":     "Faded Lane Markings",
+    "normal_road":             "No Issue Detected",
 }
 
 transform = transforms.Compose([
@@ -68,30 +73,74 @@ transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
 ])
 
+NO_ISSUE_THRESHOLD = 0.60   # below this → no issue filed
+REJECT_THRESHOLD   = 0.85   # below this → uncertain, flag for manual review
 
 def run_inference(image_path: str) -> dict | None:
     model, classes = get_model()
 
-    img = Image.open(image_path).convert("RGB")
+    img    = Image.open(image_path).convert("RGB")
     tensor = transform(img).unsqueeze(0)
 
     with torch.no_grad():
-        logits = model(tensor)
-        probs = torch.softmax(logits, dim=1)[0]
+        logits          = model(tensor)
+        probs           = torch.softmax(logits, dim=1)[0]
         confidence, idx = probs.max(0)
 
     confidence = float(confidence)
     class_name = classes[int(idx)]
 
-    # Reject if model is not confident enough
-    if confidence < 0.7:
-        return None
+    # Gate 1 — not confident enough to flag anything
+    if confidence < NO_ISSUE_THRESHOLD:
+        return {
+            "class":        "normal_road",
+            "display_name": "No Issue Detected",
+            "confidence":   round(confidence, 3),
+            "severity":     "None",
+            "department":   None,
+            "flagged":      False,
+            "note":         "Confidence below threshold — no issue filed.",
+            "bbox":         None,
+            "annotated_url": image_path,
+        }
 
+    # Gate 2 — model sees something but isn't sure
+    if confidence < REJECT_THRESHOLD:
+        return {
+            "class":        "unknown",
+            "display_name": "Uncertain — Needs Review",
+            "confidence":   round(confidence, 3),
+            "severity":     "Unknown",
+            "department":   "Municipal Corporation",
+            "flagged":      True,
+            "note":         "Low confidence — flagged for manual review.",
+            "bbox":         None,
+            "annotated_url": image_path,
+        }
+
+    # Gate 3 — normal road predicted with high confidence
+    if class_name == "normal_road":
+        return {
+            "class":        "normal_road",
+            "display_name": "No Issue Detected",
+            "confidence":   round(confidence, 3),
+            "severity":     "None",
+            "department":   None,
+            "flagged":      False,
+            "note":         "Road appears normal.",
+            "bbox":         None,
+            "annotated_url": image_path,
+        }
+
+    # High-confidence damage prediction
     return {
-        "class": class_name,
-        "confidence": round(confidence, 3),
-        "severity": SEVERITY_MAP.get(class_name, "Medium"),
-        "department": DEPARTMENT_MAP.get(class_name, "Municipal Corporation"),
-        "bbox": None,  # classification model has no bounding box
+        "class":        class_name,
+        "display_name": DISPLAY_NAME.get(class_name, class_name),
+        "confidence":   round(confidence, 3),
+        "severity":     SEVERITY_MAP.get(class_name, "Medium"),
+        "department":   DEPARTMENT_MAP.get(class_name, "Municipal Corporation"),
+        "flagged":      True,
+        "note":         None,
+        "bbox":         None,
         "annotated_url": image_path,
     }
