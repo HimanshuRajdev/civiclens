@@ -84,7 +84,7 @@ def run_inference(image_path: str) -> dict | None:
     class_name = classes[int(idx)]
 
     # Reject if model is not confident enough
-    if confidence < 0.4:
+    if confidence < 0.7:
         return None
 
     return {
