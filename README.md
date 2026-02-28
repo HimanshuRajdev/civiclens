@@ -18,7 +18,7 @@ Citizens snap a photo of any road issue. AI classifies it, writes the complaint,
 ## Stack
 
 - **ML:** EfficientNetV2-S (PyTorch) — 96.8% accuracy, 3-zone confidence gate
-- **LLM:** Google Gemini Vision — complaint generation
+- **LLM:** GPT 4.0 — complaint generation
 - **Backend:** FastAPI + SQLite
 - **Mobile:** React Native + Expo
 - **Other:** Haversine deduplication, react-native-maps, GPS capture
@@ -64,7 +64,7 @@ npx expo start
 ## Environment Variables
 
 ```
-GEMINI_API_KEY=your_key_here
+OPENAI_API_KEY=your_key_here
 ```
 
 ---
