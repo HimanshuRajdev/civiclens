@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 import { Complaint, Stats } from '../../models/complaint.model';
+import { environment } from '../../environments/environment';
 import Chart from 'chart.js/auto';
 
 @Component({
@@ -85,7 +86,7 @@ import Chart from 'chart.js/auto';
             <a routerLink="/complaints" class="view-all-link">View All &rarr;</a>
           </div>
           <div class="recent-list" *ngIf="recentComplaints.length > 0">
-            <div class="recent-item" *ngFor="let c of recentComplaints; let i = index" [style.animation-delay]="i * 0.05 + 's'">
+            <div class="recent-item" *ngFor="let c of recentComplaints; let i = index" [style.animation-delay]="i * 0.05 + 's'" (click)="selectComplaint(c)" style="cursor:pointer">
               <div class="recent-icon" [ngClass]="'severity-' + c.severity.toLowerCase()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               </div>
@@ -142,6 +143,53 @@ import Chart from 'chart.js/auto';
                   transform="rotate(-90 60 60)"/>
               </svg>
               <div class="ring-value">{{ resolutionRate }}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Complaint Detail Modal -->
+    <div class="modal-overlay" *ngIf="selectedComplaint" (click)="closeModal()">
+      <div class="modal-panel" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="modal-title-row">
+            <span class="modal-issue-type">{{ selectedComplaint.issue_type }}</span>
+            <span class="badge" [ngClass]="{
+              'badge-open': selectedComplaint.status === 'Open',
+              'badge-in-progress': selectedComplaint.status === 'In Progress',
+              'badge-resolved': selectedComplaint.status === 'Resolved'
+            }">{{ selectedComplaint.status }}</span>
+          </div>
+          <span class="modal-id">{{ selectedComplaint.id }}</span>
+          <button class="modal-close" (click)="closeModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-image-wrap" *ngIf="selectedComplaint.image_url">
+            <img [src]="getImageUrl(selectedComplaint.image_url)" alt="Complaint photo" class="modal-image" />
+          </div>
+          <div class="modal-fields">
+            <div class="modal-field full-width">
+              <label>Description</label>
+              <p>{{ selectedComplaint.description }}</p>
+            </div>
+            <div class="modal-field">
+              <label>Severity</label>
+              <span class="badge" [ngClass]="'badge-' + selectedComplaint.severity.toLowerCase()">{{ selectedComplaint.severity }}</span>
+            </div>
+            <div class="modal-field">
+              <label>Department</label>
+              <p>{{ selectedComplaint.department }}</p>
+            </div>
+            <div class="modal-field">
+              <label>Location</label>
+              <p>{{ selectedComplaint.lat.toFixed(4) }}, {{ selectedComplaint.lng.toFixed(4) }}</p>
+            </div>
+            <div class="modal-field">
+              <label>Filed At</label>
+              <p>{{ selectedComplaint.created_at }}</p>
             </div>
           </div>
         </div>
@@ -456,6 +504,122 @@ import Chart from 'chart.js/auto';
       .charts-row { grid-template-columns: 1fr; }
       .bottom-row { grid-template-columns: 1fr; }
     }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.15s ease;
+    }
+
+    .modal-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      width: 560px;
+      max-width: calc(100vw - 40px);
+      max-height: calc(100vh - 60px);
+      overflow-y: auto;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+      animation: slideUp 0.2s ease;
+    }
+
+    .modal-header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border-color);
+      position: relative;
+    }
+
+    .modal-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .modal-issue-type {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-id {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: var(--bg-surface-2);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      &:hover { color: var(--text-primary); border-color: var(--text-muted); }
+    }
+
+    .modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-image-wrap {
+      width: 100%;
+      max-height: 260px;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .modal-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .modal-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .modal-field {
+      &.full-width { grid-column: 1 / -1; }
+
+      label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--text-muted);
+        font-weight: 600;
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      p {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin: 0;
+      }
+    }
   `]
 })
 export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -470,6 +634,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   departmentLoad: any[] = [];
   resolutionRate = 0;
   resolutionDash = '0 314';
+  selectedComplaint: Complaint | null = null;
 
   private charts: Chart[] = [];
   private refreshInterval: any;
@@ -698,5 +863,18 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
+  }
+
+  selectComplaint(c: Complaint) {
+    this.selectedComplaint = c;
+  }
+
+  closeModal() {
+    this.selectedComplaint = null;
+  }
+
+  getImageUrl(url: string): string {
+    if (url.startsWith('http')) return url;
+    return `${environment.apiUrl}${url}`;
   }
 }
