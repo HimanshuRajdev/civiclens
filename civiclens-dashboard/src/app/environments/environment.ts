@@ -1,4 +1,4 @@
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:8000',
+  apiUrl: process.env['EXPO_PUBLIC_API_URL'] || 'http://localhost:8000',
 };
